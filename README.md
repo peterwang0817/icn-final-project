@@ -1,13 +1,13 @@
 # icn-final-project
 110-1 電腦網路導論期末專題
-嗨品王 嗨iven
 
-client.py + server.py
-mediaserver.py + UDPclient.py
+使用說明：
 
-example of cv2 package: webcam.py
+rtsp_server.py 目前只有TCP伺服器的功能，使用port number 554。
+rtsp_client.py 可以像作業1a中的方式，傳遞文字。
+目前正在努力使rtsp_server.py能夠讀取RTSP request
 
-unused:
-
-rtp.py
-test.py
+TODO:
+implement RTP
+使用cv2模組來抓取與顯示鏡頭畫面
+完成RTSP主要功能
