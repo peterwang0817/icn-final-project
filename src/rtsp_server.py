@@ -1,6 +1,8 @@
 import socket
 import threading
 import cv2
+import pickle
+import struct
 
 SERVER_IP = '127.0.0.1'
 SERVER_PORT = 554
@@ -24,14 +26,41 @@ class Generic:
         if self.debug: self._print(s)
 
 
+class RTP_Session(Generic):
+    def __init__(self, session_number, client_address, debug=False):
+        self.name = 'RTP Session {0}'.format(session_number)
+        self.client_address = client_address
+        self.debug = debug
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret,frame=cap.read()
+            # Serialize frame
+            data = pickle.dumps(frame)
+
+            # Send message length first
+            message_size = struct.pack("L", len(data)) ### CHANGED
+
+            # Then data
+            self.socket.sendto(message_size + data, self.client_address)
+
+
+    def output_stream(self, data):
+        self.socket.sendto(data.encode('utf-8'), self.client_address)
+    
+
 class RTSP_RequestHandler(Generic):
-    """Handles all RTSP requests, controls the RTP socket, and creates RTSP responses.\n
+    """Handles RTSP requests, controls the RTP socket, and creates RTSP responses.\n
     Currently supports the following requests:\n
     OPTIONS
     """
-    def __init__(self, debug=False):
+    def __init__(self, client_address, debug=False):
         self.name = 'RTSP Request Handler'
+        self.client_address = client_address
         self.debug = debug
+        self.sessions = {}
 
     def response(self, RTSP_request):
         header = RTSP_request.split('\n')
@@ -47,27 +76,38 @@ class RTSP_RequestHandler(Generic):
         # build the RTSP response
         RTSP_response = 'RTSP/1.0 200 OK\nCseq: {0}\n'.format(cseq)
         if request == 'OPTIONS':
-            RTSP_response += self._options()
+            RTSP_response += self._options(header)
         elif request == 'SETUP':
-            RTSP_response += self._setup()
+            RTSP_response += self._setup(header)
         elif request == 'TEARDOWN':
-            RTSP_response += self._teardown()
+            RTSP_response += self._teardown(header)
         elif request == 'PLAY':
-            RTSP_response += self._play()
+            RTSP_response += self._play(header)
         elif request == 'PAUSE':
-            RTSP_response += self._pause()
+            RTSP_response += self._pause(header)
         else:
             RTSP_response = 'RTSP/1.0 400 Bad_Request\nCseq: {0}\n'.format(cseq)
         return RTSP_response
 
-    def _options(self):
+    def _options(self, header):
         return 'Public: DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\n'
 
     def _setup(self, header):
         protocol, cast, client_port_range = (header[2][11:]).split(';')
-        self._print_debug('protocol:"{0}", cast:"{1}", client_port:"{2}"'.format(protocol, cast, client_port_range))
-        session_number = 1234
-        # TODO: setup session
+        # Define which ports are to be used for RTP/RTCP
+        port0, port1 = client_port_range[12:].split('-')
+        RTP_port, RTCP_port = int(port0), int(port1)
+        if RTCP_port % 2 == 0:
+            RTP_port, RTCP_port = RTCP_port, RTP_port
+        self._print_debug('protocol:"{0}", cast:"{1}", client_port:"{2},{3}"'.format(protocol, cast, port0, port1))
+        
+        session_number = 12345678
+        # TODO: setup RTP session
+        #self.sessions[session_number] = RTP_Session(session_number, (self.client_address[0], RTP_port))
+    
+
+
+
         return 'Transport: {0};{1};{2}\nSession: {3}\n'.format(protocol, cast, client_port_range, session_number)
 
     def _teardown(self, header):
@@ -95,7 +135,7 @@ class ClientThread(Generic):
         self.name = 'Client {0}:{1}'.format(address[0], address[1]) # [IP address]:[port]
         self.client_socket = client_socket
         self.debug = debug
-        self.RTSP_handler = RTSP_RequestHandler()
+        self.RTSP_handler = RTSP_RequestHandler(address)
         
         self.client_socket.send('Welcome to the server\n'.encode('utf-8'))
         
