@@ -1,7 +1,7 @@
 from random import randint
 import threading, socket
 
-from VideoStream import VideoStream
+from VideoStream import MJPEG, MP4, CAMERA, AUDIO
 from RtpPacket import RtpPacket
 
 class ServerWorker:
@@ -56,10 +56,18 @@ class ServerWorker:
 				print("processing SETUP\n")
 				
 				try:
-					self.clientInfo['videoStream'] = VideoStream(filename)
+					if filename.split('.')[-1] == "mp4":
+						self.clientInfo["videoStream"] = MP4(filename)
+					elif filename.split('.')[-1] == "Mjpeg":
+						self.clientInfo["videoStream"] = MJPEG(filename)
+					elif filename.split('.')[-1] == "wav":
+						self.clientInfo["videoStream"] = AUDIO(filename)
+					else:
+						self.clientInfo["videoStream"] = CAMERA()
+				
 					self.state = self.READY
 				except IOError:
-					self.replyRtsp(self.FILE_NOT_FOUND_404, seq[1])
+				 	self.replyRtsp(self.FILE_NOT_FOUND_404, seq[1])
 				
 				# Generate a randomized RTSP session ID
 				self.clientInfo['session'] = randint(100000, 999999)
@@ -111,25 +119,27 @@ class ServerWorker:
 	def sendRtp(self):
 		"""Send RTP packets over UDP."""
 		while True:
-			self.clientInfo['event'].wait(0.05) 
+			spf = 1 / self.clientInfo['videoStream'].fps() - 0.001
+			self.clientInfo['event'].wait(spf)
 			
 			# Stop sending if request is PAUSE or TEARDOWN
 			if self.clientInfo['event'].isSet(): 
 				break 
 				
 			data = self.clientInfo['videoStream'].nextFrame()
+			
 			if data: 
 				frameNumber = self.clientInfo['videoStream'].frameNbr()
 				address = self.clientInfo['rtspSocket'][1][0]
 				port = int(self.clientInfo['rtpPort'])
 				
-				try:
-					address = self.clientInfo['rtspSocket'][1][0]
-					port = int(self.clientInfo['rtpPort'])
-					self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber), (address,port))
-				except:
+				# try:
+				address = self.clientInfo['rtspSocket'][1][0]
+				port = int(self.clientInfo['rtpPort'])
+				self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber), (address,port))
+				"""except:
 					print("Connection Error")
-
+				"""
 	def makeRtp(self, payload, frameNbr):
 		"""RTP-packetize the video data."""
 		version = 2
@@ -137,7 +147,7 @@ class ServerWorker:
 		extension = 0
 		cc = 0
 		marker = 0
-		pt = 26 # MJPEG type
+		pt =  96 # MJPEG type: 26 MP4: 96
 		seqnum = frameNbr
 		ssrc = 0 
 		

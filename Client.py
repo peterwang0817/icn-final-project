@@ -1,8 +1,11 @@
+from scipy.io.wavfile import write
+import numpy as np
+from re import T
 from tkinter import *
 from tkinter import messagebox as MessageBox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
-
+from playsound import playsound
 from RtpPacket import RtpPacket
 
 CACHE_FILE_NAME = "cache-"
@@ -104,7 +107,10 @@ class Client:
 					
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
+						
+						# self.updateAudio(self.writeAudio(rtpPacket.getPayload()))
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
+					
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
 				if self.playEvent.isSet(): 
@@ -126,12 +132,26 @@ class Client:
 		
 		return cachename
 	
+	def writeAudio(self, data):
+		cachename = CACHE_FILE_NAME + str(self.sessionId) + ".wav"
+		audio = np.reshape(np.frombuffer(data, dtype=np.int16), (-1, 2))
+		
+		write(cachename, 48000, audio.astype(np.int16))
+		
+		return cachename
+
 	def updateMovie(self, imageFile):
 		"""Update the image file as video frame in the GUI."""
-		photo = ImageTk.PhotoImage(Image.open(imageFile))
+		
+		photo = ImageTk.PhotoImage((Image.open(imageFile)).resize((320, 240)))
 		self.label.configure(image = photo, height=288) 
 		self.label.image = photo
-		
+
+	def updateAudio(self, audioFile):
+		print(audioFile)
+		playsound(audioFile)
+		# pass
+
 	def connectToServer(self):
 		"""Connect to the Server. Start a new RTSP/TCP session."""
 		self.rtspSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -161,7 +181,7 @@ class Client:
 			self.rtspSeq += 1
 			
 			# Write the RTSP request to be sent.
-			request = f'PLAY {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nsession: 12345678'
+			request = f'PLAY {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nsession: {self.sessionId}'
 			
 			# Keep track of the sent request.
 			self.requestSent = self.PLAY
@@ -172,7 +192,7 @@ class Client:
 			self.rtspSeq += 1
 			
 			# Write the RTSP request to be sent.
-			request = f'PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: 12345678'
+			request = f'PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}'
 			
 			# Keep track of the sent request.
 			self.requestSent = self.PAUSE
@@ -182,7 +202,7 @@ class Client:
 			# Update RTSP sequence number.
 			self.rtspSeq += 1
 			# Write the RTSP request to be sent.
-			request = f'TEARDOWN {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: 12345678'
+			request = f'TEARDOWN {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}'
 			
 			# Keep track of the sent request.
 			self.requestSent = self.TEARDOWN
