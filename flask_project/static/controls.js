@@ -12,7 +12,7 @@ img.src = "{{ url_for('video_feed') }}";
 function refreshCanvas() {
     ctx.drawImage(img, 0, 0);
 };
-window.setInterval("refreshCanvas()", 50);
+//window.setInterval("refreshCanvas()", 50);
 
 function setupPlayer() {
     fetch('setup')

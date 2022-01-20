@@ -4,6 +4,8 @@ import threading, socket
 from VideoStream import MJPEG, MP4, CAMERA, AUDIO
 from RtpPacket import RtpPacket
 
+import pyaudio
+
 class ServerWorker:
     SETUP = 'SETUP'
     PLAY = 'PLAY'
@@ -76,8 +78,9 @@ class ServerWorker:
                 self.replyRtsp(self.OK_200, seq[1])
                 
                 # Get the RTP/UDP port from the last line
-
-                self.clientInfo['rtpPort'] = request[2].split(' ')[3]
+                rtp_ports = (request[2].split(';')[1])[12:].split('-')
+                self.clientInfo['rtpVideoPort'] = rtp_ports[0]
+                self.clientInfo['rtpAudioPort'] = rtp_ports[1]
         
         # Process PLAY request         
         elif requestType == self.PLAY:
@@ -131,11 +134,11 @@ class ServerWorker:
             if data: 
                 frameNumber = self.clientInfo['videoStream'].frameNbr()
                 address = self.clientInfo['rtspSocket'][1][0]
-                port = int(self.clientInfo['rtpPort'])
+                port = int(self.clientInfo['rtpVideoPort'])
                 
                 # try:
                 address = self.clientInfo['rtspSocket'][1][0]
-                port = int(self.clientInfo['rtpPort'])
+                port = int(self.clientInfo['rtpVideoPort'])
                 self.clientInfo['rtpSocket'].sendto(self.makeRtp(data, frameNumber), (address,port))
                 #print('sent rtp packet to {0}:{1}'.format(address, port))
                 """except:

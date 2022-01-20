@@ -1,7 +1,8 @@
 <html>
 <head>
     <title>Joogle Meat</title>
-    <script type="text/javascript" src="{{ url_for('static', filename='stream.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='controls.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
 </head>
 <body>
     <div width="640px" height="480px" style="display:inline-block">
@@ -20,5 +21,9 @@
         <input type="button" value="PAUSE" onclick="pausePlayer()" id="pause_button">
         <input type="button" value="TEARDOWN" onclick="teardownPlayer()" id="stop_button">
     </div>
+    <audio controls>
+        <source src="{{ url_for('audio_feed') }}" type="audio/x-wav;codec=pcm">
+        Your browser does not support the audio element.
+    </audio>
 </body>
 </html>

@@ -18,11 +18,12 @@ class Client:
 
     state = INIT
 
-    def __init__(self, filename, server_address, server_port, RTP_port):
+    def __init__(self, filename, server_address, server_port, RTP_ports):
         # basic variables
         self.server_address = server_address
         self.server_port = server_port
-        self.RTP_port = RTP_port
+        self.video_port = RTP_ports[0]
+        self.audio_port = RTP_ports[1]
         self.filename = filename
 
         # RTSP variables
@@ -33,34 +34,41 @@ class Client:
 
         # sockets
         self.RTSP_socket = self._connect_server(self.server_address, self.server_port)
-        self.RTP_socket = None
+        self.video_socket = None
+        self.audio_socket = None
 
         self.current_frame = None
-        self.frameNbr = 0
+        self.current_audio = None
+
+        self.video_frame_number = 0
+        self.audio_frame_number = 0
 
     def _print(self, s):
         print('[stream_client.py]: ' + s)
 
-    def _open_RTP_port(self):
+    def _open_RTP_port(self, port):
         """Open RTP socket binded to a specified port."""
         # Create a new datagram socket to receive RTP packets from the server
-        self.RTP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        new_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         
         # Set the timeout value of the socket to 0.5sec
-        self.RTP_socket.settimeout(0.5)
+        new_socket.settimeout(0.5)
 
         try:
             # Bind the socket to the address using the RTP port given by the client user
-            self.RTP_socket.bind(('', self.RTP_port))
-            self._print('Listening for RTP on port {0}'.format(self.RTP_port))
+            new_socket.bind(('', port))
+            self._print('Listening for RTP on port {0}'.format(port))
         except:
-            self._print('Unable to bind PORT={0}'.format(self.RTP_port))
+            self._print('Unable to bind PORT={0}'.format(port))
+           
+        return new_socket
 
-    def _listen_RTP(self):        
+
+    def _listen_RTP_video(self):        
         """Listen for RTP packets."""
         while True:
             try:
-                data = self.RTP_socket.recv(20480)
+                data = self.video_socket.recv(20480)
                 if data:
                     rtpPacket = RtpPacket()
                     rtpPacket.decode(data)
@@ -68,11 +76,12 @@ class Client:
                     currFrameNbr = rtpPacket.seqNum()
                     #self._print("Current Seq Num: {0}".format(currFrameNbr))
                     
-                    if currFrameNbr > self.frameNbr: # Discard the late packet
-                        self.frameNbr = currFrameNbr
+                    if currFrameNbr > self.video_frame_number: # Discard the late packet
+                        self.video_frame_number = currFrameNbr
                         
                         # self.updateAudio(self.writeAudio(rtpPacket.getPayload()))
-                        self._write_frame(rtpPacket.getPayload())
+                        #self._write_frame(rtpPacket.getPayload())
+                        self.current_frame = rtpPacket.getPayload()
                     
             except:
                 # Stop listening upon requesting PAUSE or TEARDOWN
@@ -82,9 +91,42 @@ class Client:
                 # Upon receiving ACK for TEARDOWN request,
                 # close the RTP socket
                 if self.teardown_ack == 1:
-                    self.RTP_socket.shutdown(socket.SHUT_RDWR)
-                    self.RTP_socket.close()
+                    self.video_socket.shutdown(socket.SHUT_RDWR)
+                    self.video_socket.close()
                     break
+
+
+    def _listen_RTP_audio(self):        
+        """Listen for RTP packets."""
+        while True:
+            try:
+                data = self.audio_socket.recv(20480)
+                if data:
+                    rtpPacket = RtpPacket()
+                    rtpPacket.decode(data)
+                    
+                    currFrameNbr = rtpPacket.seqNum()
+                    #self._print("Current Seq Num: {0}".format(currFrameNbr))
+                    
+                    if currFrameNbr > self.audio_frame_number: # Discard the late packet
+                        self.audio_frame_number = currFrameNbr
+                        
+                        # self.updateAudio(self.writeAudio(rtpPacket.getPayload()))
+                        #self._write_frame(rtpPacket.getPayload())
+                        self.current_audio = rtpPacket.getPayload()
+                    
+            except:
+                # Stop listening upon requesting PAUSE or TEARDOWN
+                if self.playEvent.isSet(): 
+                    break
+                
+                # Upon receiving ACK for TEARDOWN request,
+                # close the RTP socket
+                if self.teardown_ack == 1:
+                    self.audio_socket.shutdown(socket.SHUT_RDWR)
+                    self.audio_socket.close()
+                    break
+        
 
     def _write_frame(self, data):
         """Write the received frame to a temp image file. Return the image file."""
@@ -122,7 +164,8 @@ class Client:
                         self.state = READY
                         
                         # Open RTP port.
-                        self._open_RTP_port() 
+                        self.video_socket = self._open_RTP_port(self.video_port) 
+                        self.audio_socket = self._open_RTP_port(self.audio_port) 
                     elif self.last_request_sent == PLAY:
                         self.state = PLAYING
                         
@@ -159,7 +202,7 @@ class Client:
             self.cseq += 1
             request = ('SETUP {0} RTSP/1.0\n'
                        'CSeq: {1}\n'
-                       'Transport: RTP/AVP; client_port= {2}').format(self.filename, self.cseq, self.RTP_port)
+                       'Transport: RTP/AVP;client_port={2}-{3}').format(self.filename, self.cseq, self.video_port, self.audio_port)
             self.last_request_sent = SETUP
 
         elif request_type == PLAY and self.state == READY:
@@ -197,7 +240,8 @@ class Client:
         """PUBLIC METHOD CALLED BY FLASK. Plays/resumes streaming session."""
         if self.state == READY:
             # Create a new thread to listen for RTP packets
-            threading.Thread(target=self._listen_RTP).start()
+            threading.Thread(target=self._listen_RTP_video).start()
+            threading.Thread(target=self._listen_RTP_audio).start()
             self.playEvent = threading.Event()
             self.playEvent.clear()
             self._send_RTSP_request(PLAY)
