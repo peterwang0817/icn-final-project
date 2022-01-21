@@ -1,0 +1,25 @@
+<html>
+<head>
+    <title>Joogle Meat</title>
+    <script type="text/javascript" src="{{ url_for('static', filename='controls.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
+</head>
+<body>
+    <div width="640px" height="480px" style="display:inline-block">
+        <h1>Joogle Meat v0 (experimental)</h1>
+        <img id="img" src="{{ url_for('video_feed') }}">
+    </div>
+    <!--
+    <div width="640px" height="480px" style="display:inline-block">
+        <h1>Canvas</h1>
+        <canvas id="canvas" width="640px" height="480px"></canvas>
+    </div>
+    -->
+    <div id="player_controls">
+        <input type="button" value="SETUP" onclick="setupPlayer()" id="play_button">
+        <input type="button" value="PLAY" onclick="playPlayer()" id="play_button">
+        <input type="button" value="PAUSE" onclick="pausePlayer()" id="pause_button">
+        <input type="button" value="TEARDOWN" onclick="teardownPlayer()" id="stop_button">
+    </div>
+</body>
+</html>
