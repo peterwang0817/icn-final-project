@@ -3,7 +3,7 @@ Our work provides two mode: video streaming, meet streaming. Video streaming wil
 
 ## Server
     cd ./Server/
-    python Server.py 554 to start streaming Server
+    python Server.py 554
 
 ## Client
 mode is chosen from video or meet
