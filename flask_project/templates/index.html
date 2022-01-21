@@ -15,15 +15,11 @@
         <canvas id="canvas" width="640px" height="480px"></canvas>
     </div>
     -->
-    <div id='player_controls'>
+    <div id="player_controls">
         <input type="button" value="SETUP" onclick="setupPlayer()" id="play_button">
         <input type="button" value="PLAY" onclick="playPlayer()" id="play_button">
         <input type="button" value="PAUSE" onclick="pausePlayer()" id="pause_button">
         <input type="button" value="TEARDOWN" onclick="teardownPlayer()" id="stop_button">
     </div>
-    <audio controls>
-        <source src="{{ url_for('audio_feed') }}" type="audio/x-wav;codec=pcm">
-        Your browser does not support the audio element.
-    </audio>
 </body>
 </html>
